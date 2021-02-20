@@ -7,16 +7,12 @@ CC = gcc
 CFLAGS = -g -Wall
 
 # The build target executables:
-ORIGINAL_TARGET = tictactoeOriginal
 P1_TARGET = tictactoeP1
 P2_TARGET = tictactoeP2
 TARGETS = $(P1_TARGET) $(P2_TARGET)
 
 # Process to build application
 all: $(TARGETS)
-
-$(ORIGINAL_TARGET): $(ORIGINAL_TARGET).c
-	$(CC) $(CFLAGS) -o $@ $<
 
 $(P1_TARGET): $(P1_TARGET).c
 	$(CC) $(CFLAGS) -o $@ $<
