@@ -12,6 +12,7 @@
 #include <string.h>
 #include <strings.h>
 #include <netdb.h>
+#include <sys/time.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -19,26 +20,38 @@
 
 /* The number of command line arguments. */
 #define NUM_ARGS 2
-/* The maximum length to which the queue of pending connections may grow. */
-#define BACKLOG_MAX 5
+/* TODO */
+#define BUFFER_SIZE 100
+/* TODO */
+#define TIMEOUT 20
 /* The number of rows for the TicIacToe board. */
 #define ROWS 3
 /* The number of columns for the TicIacToe board. */
 #define COLUMNS 3
+/* TODO */
+#define VERSION 2
+
+// COMMANDS
+/* TODO */
+#define NEW_GAME 0x00
+/* TODO */
+#define MOVE 0x01
 
 void print_error(const char *msg, int errnum, int terminate);
 void handle_init_error(const char *msg, int errnum);
 void extract_args(char *argv[], int *port);
 void print_server_info(const struct sockaddr_in *serverAddr);
 int create_endpoint(struct sockaddr_in *socketAddr, unsigned long address, int port);
+void set_timeout(int sd, int seconds);
+int new_game(int sd, struct sockaddr_in *playerAddr);
 void init_shared_state(char board[ROWS][COLUMNS]);
 int check_win(char board[ROWS][COLUMNS]);
 void print_board(char board[ROWS][COLUMNS]);
 int validate_choice(int choice, char board[ROWS][COLUMNS]);
 int get_p1_choice();
-int get_p2_choice(int sd);
-int get_player_choice(int sd, char board[ROWS][COLUMNS], int player);
-void tictactoe(int sd, char board[ROWS][COLUMNS]);
+int get_p2_choice(int sd, unsigned int playerAddr);
+int get_player_choice(int sd, const struct sockaddr_in *playerAddr, char board[ROWS][COLUMNS], int player);
+void tictactoe(int sd, const struct sockaddr_in *playerAddr, char board[ROWS][COLUMNS]);
 
 /**
  * @brief This program creates and sets up a TicTacToe server which acts as Player 1 in a
@@ -63,43 +76,38 @@ void tictactoe(int sd, char board[ROWS][COLUMNS]);
 int main(int argc, char *argv[]) {
     int sd, portNumber;
     char board[ROWS][COLUMNS];
-    struct sockaddr_in serverAddr;
+    struct sockaddr_in serverAddress;
 
     /* If arg count correct, extract arguments to their respective variables */
-	if (argc != NUM_ARGS) handle_init_error("argc: Invalid number of command line arguments", 0);
-	extract_args(argv, &portNumber);
+    if (argc != NUM_ARGS) handle_init_error("argc: Invalid number of command line arguments", 0);
+    extract_args(argv, &portNumber);
 
-    /* Create server socket from user provided data */
-	sd = create_endpoint(&serverAddr, INADDR_ANY, portNumber);
+    /* Create server socket and print server information */
+    sd = create_endpoint(&serverAddress, INADDR_ANY, portNumber);
+    print_server_info(&serverAddress);
 
-    /* Print server information and listen for clients wanting to connect */
-    if (listen(sd, BACKLOG_MAX) == 0) {
-        print_server_info(&serverAddr);
-        /* Play the TicTacToe game whenever a new player connects */
-        while (1) {
-            int connected_sd;
-            struct sockaddr_in clientAddress;
-            socklen_t fromLength;
-
-            printf("[+]Waiting for Player 2 to join...\n");
-            /* Wait for Player 2 to connect to the game */
-            if ((connected_sd = accept(sd, (struct sockaddr *)&clientAddress, &fromLength)) >= 0) {
-                printf("Player 2 connected.\n");
-                /* Initialize the 'game' board and start the 'game' */
-                init_shared_state(board);
-                tictactoe(connected_sd, board);
-                printf("[+]The game has ended. Closing the connection.\n");
-                if (close(connected_sd) < 0) print_error("close client-connection", errno, 0);
-            } else {
-                print_error("accept", errno, 0);
-            }
+    /* Play the TicTacToe game TODO */
+    int newGame = 1;
+    while (1) {
+        struct sockaddr_in clientAddress;
+        if (newGame) printf("[+]Waiting for Player 2 to join...\n");
+        /* Wait for Player 2 to to issue "New Game" comamnd */
+        if (new_game(sd, &clientAddress)) {
+            unsigned int sAddr = serverAddress.sin_addr.s_addr, cAddr = clientAddress.sin_addr.s_addr;
+            printf("%u: %s\n", sAddr, inet_ntoa(serverAddress.sin_addr));
+            printf("%u: %s\n", cAddr, inet_ntoa(clientAddress.sin_addr));
+            printf((sAddr == cAddr) ? "TRUE\n" : "FALSE\n");
+            /* Initialize the 'game' board and start the 'game' */
+            init_shared_state(board);
+            tictactoe(sd, &clientAddress, board);
+            newGame = 1;
+            printf("[+]The game has ended. Closing the connection.\n"); // TODO
+        } else {
+            newGame = 0;
         }
-    } else {
-        print_error("listen", errno, 1);
-        if (close(sd) < 0) print_error("close client-connection", errno, 0);
     }
 
-  return 0;
+    return 0;
 }
 
 /**
@@ -111,14 +119,14 @@ int main(int argc, char *argv[]) {
  * @param terminate Whether or not the process should be terminated.
  */
 void print_error(const char *msg, int errnum, int terminate) {
-	/* Check for valid error code and generate error message */
-	if (errnum) {
-		printf("ERROR: %s: %s\n", msg, strerror(errnum));
-	} else {
-		printf("ERROR: %s\n", msg);
-	}
-	/* Exits process if it should be terminated */
-	if (terminate) exit(EXIT_FAILURE);
+    /* Check for valid error code and generate error message */
+    if (errnum) {
+        printf("ERROR: %s: %s\n", msg, strerror(errnum));
+    } else {
+        printf("ERROR: %s\n", msg);
+    }
+    /* Exits process if it should be terminated */
+    if (terminate) exit(EXIT_FAILURE);
 }
 
 /**
@@ -129,10 +137,10 @@ void print_error(const char *msg, int errnum, int terminate) {
  * @param errnum This is the error number, usually errno.
  */
 void handle_init_error(const char *msg, int errnum) {
-	print_error(msg, errnum, 0);
-	printf("Usage is: tictactoeP1 <remote-port>\n");
-	/* Exits the process signaling unsuccessful termination */
-	exit(EXIT_FAILURE);
+    print_error(msg, errnum, 0);
+    printf("Usage is: tictactoeP1 <remote-port>\n");
+    /* Exits the process signaling unsuccessful termination */
+    exit(EXIT_FAILURE);
 }
 
 /**
@@ -147,9 +155,9 @@ void handle_init_error(const char *msg, int errnum) {
  * @param port The remote port number that the server should listen on
  */
 void extract_args(char *argv[], int *port) {
-	/* Extract and validate remote port number */
-	*port = strtol(argv[1], NULL, 10);
-	if (*port < 1 || *port != (u_int16_t)(*port)) handle_init_error("remote-port: Invalid port number", 0);
+    /* Extract and validate remote port number */
+    *port = strtol(argv[1], NULL, 10);
+    if (*port < 1 || *port != (u_int16_t)(*port)) handle_init_error("remote-port: Invalid port number", 0);
 }
 
 /**
@@ -187,25 +195,61 @@ void print_server_info(const struct sockaddr_in *serverAddr) {
  * @return The socket descriptor of the created comminication endpoint.
  */
 int create_endpoint(struct sockaddr_in *socketAddr, unsigned long address, int port) {
-	int sd;
-	/* Create socket */
-	if ((sd = socket(AF_INET, SOCK_STREAM, 0)) != -1) {
-		socketAddr->sin_family = AF_INET;
-		/* Assign IP address to socket */
-		socketAddr->sin_addr.s_addr = address;
-		/* Assign port number to socket */
-		socketAddr->sin_port = htons(port);
-	} else {
-		print_error("create_endpoint: socket", errno, 1);
-	}
+    int sd;
+    /* Create socket */
+    if ((sd = socket(AF_INET, SOCK_DGRAM, 0)) != -1) {
+        socketAddr->sin_family = AF_INET;
+        /* Assign IP address to socket */
+        socketAddr->sin_addr.s_addr = address;
+        /* Assign port number to socket */
+        socketAddr->sin_port = htons(port);
+    } else {
+        print_error("create_endpoint: socket", errno, 1);
+    }
+    // NOTE where to put timeput?
+    /* SET TIMEOUT - int setsockopt(int socket, int level, int option_name, const void *option_value, socklen_t option_len); */
+
     /* Bind socket */
-	if (bind(sd, (struct sockaddr *)socketAddr, sizeof(*socketAddr)) == 0) {
-		printf("[+]Server socket created successfully.\n");
-	} else {
-		print_error("create_endpoint: bind", errno, 1);
-	}
-    
-	return sd;
+    if (bind(sd, (struct sockaddr *)socketAddr, sizeof(*socketAddr)) == 0) {
+        printf("[+]Server socket created successfully.\n");
+    } else {
+        print_error("create_endpoint: bind", errno, 1);
+    }
+
+    return sd;
+}
+
+/* NOTE */
+void set_timeout(int sd, int seconds) {
+    struct timeval time;
+    time.tv_sec = seconds;
+    time.tv_usec = 0;
+
+    if (setsockopt(sd, SOL_SOCKET, SO_RCVTIMEO, &time, sizeof(time)) < 0) {
+        print_error("set_timeout", errno, 0);
+    }
+}
+
+/* NOTE */
+int new_game(int sd, struct sockaddr_in *playerAddr) {
+    int rv;
+    char buffer[BUFFER_SIZE] = {0};
+    char version, command;
+    socklen_t fromLength;
+
+    if ((rv = recvfrom(sd, &buffer, BUFFER_SIZE, 0, (struct sockaddr *)playerAddr, &fromLength)) < 2) { // NOTE need == 0 ?
+        if (rv < 0) print_error("new_game", errno, 0);
+        return 0;
+    } else {
+        version = buffer[0], command = buffer[1];
+        if (version == VERSION && command == NEW_GAME) {
+            printf("%d\n", playerAddr->sin_addr.s_addr);
+            printf("Player 2 at address %s has requested a new game\n", inet_ntoa(playerAddr->sin_addr));
+            return 1;
+        } else {
+            return 0;
+        }
+    }
 }
 
 /**
@@ -307,14 +351,14 @@ int get_p1_choice() {
  * @param sd The socket descriptor of the connected player's comminication endpoint.
  * @return The integer for the square that Player 2 would like to move to. 
  */
-int get_p2_choice(int sd) {
+int get_p2_choice(int sd, unsigned int playerAddr) { // NOTE fix for datagram
     int rv;
     char pick = '0';
     printf("Waiting for Player 2 to make a move...\n");
     /* Get move from remote player */
     if ((rv = recv(sd, &pick, sizeof(char), 0)) < 0) {
         print_error("get_p2_choice", errno, 0);
-    } else if (rv == 0) {   // the remote player has terminated the connection
+    } else if (rv == 0) {   // the remote player has terminated the connection NOTE still need this?
         print_error("Player 2 has left the game", errno, 0);
     } else {
         printf("Player 2 chose:  %c\n", pick);
@@ -358,9 +402,9 @@ int validate_choice(int choice, char board[ROWS][COLUMNS]) {
  * @return The valid choice received from either Player 1 or 2, or -1 if an invalid
  * move was recieved from Player 2.
  */
-int get_player_choice(int sd, char board[ROWS][COLUMNS], int player) {
+int get_player_choice(int sd, const struct sockaddr_in *playerAddr, char board[ROWS][COLUMNS], int player) {
     /* Get the player's move */
-    int choice = (player == 1) ? get_p1_choice(sd) : get_p2_choice(sd);
+    int choice = (player == 1) ? get_p1_choice() : get_p2_choice(sd, playerAddr->sin_addr.s_addr);
     /* Attempt to validate move; reprompt if Player 1, otherwise return error */
     while (!validate_choice(choice, board)) {
         if (player == 1) {
@@ -372,8 +416,8 @@ int get_player_choice(int sd, char board[ROWS][COLUMNS], int player) {
     /* If Player 1, we need to send the move to the other player */
     if (player == 1) {
         char pick = choice + '0';
-        if (send(sd, &pick, sizeof(char), MSG_NOSIGNAL) < 0) {
-            print_error("transfer_header", errno, 0);
+        if (sendto(sd, &pick, 1, 0, (struct sockaddr *)playerAddr, sizeof(struct sockaddr_in)) < 0) { // NOTE check if client still around?
+            print_error("send_move", errno, 0);
             return -1;
         }
     }
@@ -387,7 +431,7 @@ int get_player_choice(int sd, char board[ROWS][COLUMNS], int player) {
  * @param sd The socket descriptor of the connected player's comminication endpoint.
  * @param board The array representing the current state of the game board.
  */
-void tictactoe(int sd, char board[ROWS][COLUMNS]) {
+void tictactoe(int sd, const struct sockaddr_in *playerAddr, char board[ROWS][COLUMNS]) {
     /***************************************************************************/
     /* This is the meat of the game, you'll look here for how to change it up. */
     /***************************************************************************/
@@ -401,7 +445,7 @@ void tictactoe(int sd, char board[ROWS][COLUMNS]) {
         /* Print the board on the screen */
         print_board(board);
         /* Get the player's move */
-        if ((choice = get_player_choice(sd, board, player)) < 0) return;
+        if ((choice = get_player_choice(sd, playerAddr, board, player)) < 0) return;
         /* Depending on who the player is, use either X or O */
         mark = (player == 1) ? 'X' : 'O';
         
