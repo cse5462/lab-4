@@ -1,4 +1,4 @@
-# TicTacToe Program – Stream Sockets
+# TicTacToe Program – Datagram Sockets
 > This is the README file for [Lab_4](https://osu.instructure.com/courses/97443/files/27903212/download?download_frd=1)
 
 **NAME:** Conner Graham, Ben Nagel  
