@@ -21,14 +21,6 @@
 /* The number of command line arguments. */
 #define NUM_ARGS 3
 
-#define VERSION 2
-
-// COMMANDS
-/* TODO */
-#define NEW_GAME 0x00
-/* TODO */
-#define MOVE 0x01
-
 /* C language requires that you predefine all the routines you are writing */
  struct buffer {
        char version;
