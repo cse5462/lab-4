@@ -16,11 +16,11 @@
   - [Assumptions](#assumptions-p2)
 
 ## Included Files
-- [makefile](https://github.com/CSE-5462-Spring-2021/assignment4-conner-and-ben/blob/main/makefile)
-- Player 1 (server) Design Document - [Design_P1.md](https://github.com/CSE-5462-Spring-2021/assignment4-conner-and-ben/blob/main/Design_P1.md)
-- TicTacToe Player 1 Source Code - [tictactoeP1.c](https://github.com/CSE-5462-Spring-2021/assignment4-conner-and-ben/blob/main/tictactoeP1.c)
-- Player 2 (client) Design Document - [Design_P2.md](https://github.com/CSE-5462-Spring-2021/assignment4-conner-and-ben/blob/main/Design_P2.md)
-- TicTacToe Player 2 Source Code - [tictactoeP2.c](https://github.com/CSE-5462-Spring-2021/assignment4-conner-and-ben/blob/main/tictactoeP2.c)
+- [makefile](https://github.com/CSE-5462-Spring-2021/assigment4-conner-and-ben/blob/main/makefile)
+- Player 1 (server) Design Document - [Design_P1.md](https://github.com/CSE-5462-Spring-2021/assigment4-conner-and-ben/blob/main/Design_P1.md)
+- TicTacToe Player 1 Source Code - [tictactoeP1.c](https://github.com/CSE-5462-Spring-2021/assigment4-conner-and-ben/blob/main/tictactoeP1.c)
+- Player 2 (client) Design Document - [Design_P2.md](https://github.com/CSE-5462-Spring-2021/assigment4-conner-and-ben/blob/main/Design_P2.md)
+- TicTacToe Player 2 Source Code - [tictactoeP2.c](https://github.com/CSE-5462-Spring-2021/assigment4-conner-and-ben/blob/main/tictactoeP2.c)
 ## TicTacToe Player 1
 > By: Conner Graham
 
