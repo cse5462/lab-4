@@ -25,7 +25,7 @@
 /* TODO */
 #define ERROR_CODE -1   // NOTE == '/'
 /* TODO */
-#define TIMEOUT 5
+#define TIMEOUT 10
 /* The number of rows for the TicIacToe board. */
 #define ROWS 3
 /* The number of columns for the TicIacToe board. */
@@ -103,11 +103,11 @@ int main(int argc, char *argv[]) {
         if (newGame) set_timeout(sd, 0);
         /* Wait for Player 2 to to issue "New Game" comamnd */
         if ((newGame = new_game(sd, &clientAddress))) {
-            set_timeout(sd, TIMEOUT);   // NOTE for specific player address?
+            set_timeout(sd, TIMEOUT);
             /* Initialize the 'game' board and start the 'game' */
             init_shared_state(board);
             tictactoe(sd, &clientAddress, board);
-            printf("[+]The game has ended.\n"); // NOTE should i create a new socket each time?
+            printf("[+]The game has ended.\n");
         }
     }
 
@@ -222,9 +222,8 @@ int create_endpoint(struct sockaddr_in *socketAddr, unsigned long address, int p
 
 /* TODO */
 void set_timeout(int sd, int seconds) {
-    struct timeval time;
+    struct timeval time = {0};
     time.tv_sec = seconds;
-    time.tv_usec = 0;
 
     if (setsockopt(sd, SOL_SOCKET, SO_RCVTIMEO, &time, sizeof(time)) < 0) {
         print_error("set_timeout", errno, 0);
@@ -237,7 +236,7 @@ int new_game(int sd, struct sockaddr_in *playerAddr) {
     struct Buffer recvBuffer = {0};
     socklen_t fromLength = sizeof(struct sockaddr);
 
-    if ((rv = recvfrom(sd, &recvBuffer, BUFFER_SIZE, 0, (struct sockaddr *)playerAddr, &fromLength)) < 2) { // NOTE need == 0 ?
+    if ((rv = recvfrom(sd, &recvBuffer, BUFFER_SIZE, 0, (struct sockaddr *)playerAddr, &fromLength)) < 2) {
         if (rv < 0) print_error("new_game", errno, 0);
         return 0;
     } else {
@@ -348,7 +347,7 @@ int send_p1_move(int sd, const struct sockaddr_in *playerAddr, int move) {
     sendBuffer.version = VERSION;
     sendBuffer.command = MOVE;
     sendBuffer.data = move + '0';
-    if (sendto(sd, &sendBuffer, BUFFER_SIZE, 0, (struct sockaddr *)playerAddr, sizeof(struct sockaddr_in)) < 0) { // NOTE check if client still around?
+    if (sendto(sd, &sendBuffer, BUFFER_SIZE, 0, (struct sockaddr *)playerAddr, sizeof(struct sockaddr_in)) < 0) {
         print_error("send_move", errno, 0);
         return ERROR_CODE;
     }
@@ -370,7 +369,7 @@ int get_p2_choice(int sd, const struct sockaddr_in *playerAddr) {
     uint16_t pPort = playerAddr->sin_port;
 
     printf("Waiting for Player 2 to make a move...\n");
-    while (clientAddr.sin_addr.s_addr != pAddr || clientAddr.sin_port != pPort) {   // NOTE need same port?
+    while (clientAddr.sin_addr.s_addr != pAddr || clientAddr.sin_port != pPort) {
         /* Get move from remote player */
         if ((rv = recvfrom(sd, &recvBuffer, BUFFER_SIZE, 0, (struct sockaddr *)&clientAddr, &fromLength)) <= 0) {
             if (errno == EAGAIN || errno == EWOULDBLOCK) {
@@ -442,7 +441,9 @@ int get_player_choice(int sd, const struct sockaddr_in *playerAddr, char board[R
         }
     }
     /* If Player 1, we need to send the move to the other player */
-    if (send_p1_move(sd, playerAddr, choice) < 0) return ERROR_CODE;
+    if (player == 1) {
+        if (send_p1_move(sd, playerAddr, choice) < 0) return ERROR_CODE;
+    }
     return choice;
 }
 
