@@ -18,32 +18,35 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
+/* The protocol version number used. */
+#define VERSION 2
+
 /* The number of command line arguments. */
 #define NUM_ARGS 2
-/* TODO */
+/* The maximum size of a buffer for the program. */
 #define BUFFER_SIZE 100
-/* TODO */
-#define ERROR_CODE -1   // NOTE == '/'
-/* TODO */
-#define TIMEOUT 10
+/* The error code used to signal an invalid move. */
+#define ERROR_CODE -1
+/* The number of seconds spend waiting before a timeout. */
+#define TIMEOUT 15
 /* The number of rows for the TicIacToe board. */
 #define ROWS 3
 /* The number of columns for the TicIacToe board. */
 #define COLUMNS 3
-/* TODO */
-#define VERSION 2
 
-// COMMANDS
-/* TODO */
+/*******************/
+/* PLAYER COMMANDS */
+/*******************/
+/* The command to begin a new game. */
 #define NEW_GAME 0x00
-/* TODO */
+/* The command to issue a move. */
 #define MOVE 0x01
 
-/* TODO */
+/* Structure to send and recieve player datagrams. */
 struct Buffer {
-    char version;
-    char command;
-    char data;
+    char version;   // version number
+    char command;   // player command
+    char data;      // data for command if applicable
 };
 
 void print_error(const char *msg, int errnum, int terminate);
@@ -59,17 +62,18 @@ void print_board(char board[ROWS][COLUMNS]);
 int validate_choice(int choice, char board[ROWS][COLUMNS]);
 int get_p1_choice();
 int get_p2_choice(int sd, const struct sockaddr_in *playerAddr);
+int send_p1_move(int sd, const struct sockaddr_in *playerAddr, int move);
 int get_player_choice(int sd, const struct sockaddr_in *playerAddr, char board[ROWS][COLUMNS], int player);
 void tictactoe(int sd, const struct sockaddr_in *playerAddr, char board[ROWS][COLUMNS]);
 
 /**
  * @brief This program creates and sets up a TicTacToe server which acts as Player 1 in a
- * 2-player game of TicTacToe. This server creates a server socket for the clients to connect
- * to, listens for and accepts remote client TCP STREAM connections, and then initiates a simple
+ * 2-player game of TicTacToe. This server creates a server socket for the clients to communicate
+ * with, listens for remote client UDP DAGAGRAM packets, and then initiates a simple
  * game of TicTacToe in which Player 1 and Player 2 take turns making moves which they send to
- * the other player. If an error occurs before the connection is established, the program
+ * the other player. If an error occurs before the "New Game" command is received, the program
  * terminates and prints appropriate error messages, otherwise an error message is printed and
- * the connection to the connected client is terminated.
+ * the program searches for a new player waiting to play.
  * 
  * @param argc Non-negative value representing the number of arguments passed to the program
  * from the environment in which the program is run.
@@ -95,14 +99,16 @@ int main(int argc, char *argv[]) {
     sd = create_endpoint(&serverAddress, INADDR_ANY, portNumber);
     print_server_info(&serverAddress);
 
-    /* Play the TicTacToe game TODO */
+    /* Play the TicTacToe game when a player asks for one */
     int newGame = 1;
     while (1) {
         struct sockaddr_in clientAddress;
         if (newGame) printf("[+]Waiting for Player 2 to join...\n");
+        /* Remove timout when waiting for new player */
         if (newGame) set_timeout(sd, 0);
-        /* Wait for Player 2 to to issue "New Game" comamnd */
+        /* Wait for a player to issue "New Game" comamnd */
         if ((newGame = new_game(sd, &clientAddress))) {
+            /* Set timout once player has started a new game */
             set_timeout(sd, TIMEOUT);
             /* Initialize the 'game' board and start the 'game' */
             init_shared_state(board);
@@ -165,13 +171,13 @@ void extract_args(char *argv[], int *port) {
 }
 
 /**
- * @brief Prints 
+ * @brief Prints the server information needed for the client to comminicate with the server.
  * 
  * @param serverAddr The socket address structure for the server comminication endpoint.
  */
 void print_server_info(const struct sockaddr_in *serverAddr) {
     int hostname;
-    char hostbuffer[256], *IP_addr;
+    char hostbuffer[BUFFER_SIZE], *IP_addr;
     struct hostent *host_entry;
 
     /* Retrieve the hostname */
@@ -195,7 +201,6 @@ void print_server_info(const struct sockaddr_in *serverAddr) {
  * @param socketAddr The socket address structure created for the comminication endpoint.
  * @param address The IP address for the socket address structure.
  * @param port The port number for the socket address structure.
- * @param backlog The maximum length to which the queue of pending connections may grow.
  * @return The socket descriptor of the created comminication endpoint.
  */
 int create_endpoint(struct sockaddr_in *socketAddr, unsigned long address, int port) {
@@ -210,7 +215,7 @@ int create_endpoint(struct sockaddr_in *socketAddr, unsigned long address, int p
     } else {
         print_error("create_endpoint: socket", errno, 1);
     }
-    /* Bind socket */
+    /* Bind socket to communication endpoint */
     if (bind(sd, (struct sockaddr *)socketAddr, sizeof(struct sockaddr_in)) == 0) {
         printf("[+]Server socket created successfully.\n");
     } else {
@@ -220,26 +225,42 @@ int create_endpoint(struct sockaddr_in *socketAddr, unsigned long address, int p
     return sd;
 }
 
-/* TODO */
+/**
+ * @brief Sets the time to wait before a timeout on recvfrom calls to the specified number
+ * of seconds, or turns it off if zero seconds was entered.
+ * 
+ * @param sd The socket descriptor of the server comminication endpoint.
+ * @param seconds The number of seconds to wait before a timeout.
+ */
 void set_timeout(int sd, int seconds) {
     struct timeval time = {0};
     time.tv_sec = seconds;
 
+    /* Sets the recvfrom timeout option */
     if (setsockopt(sd, SOL_SOCKET, SO_RCVTIMEO, &time, sizeof(time)) < 0) {
         print_error("set_timeout", errno, 0);
     }
 }
 
-/* TODO */
+/**
+ * @brief Recieves a datagram from another player and checks to see if it is a valid
+ * "New Game" request.
+ * 
+ * @param sd The socket descriptor of the server comminication endpoint.
+ * @param playerAddr 
+ * @return True if a "New Game" request has been received, false otherwise. 
+ */
 int new_game(int sd, struct sockaddr_in *playerAddr) {
     int rv;
     struct Buffer recvBuffer = {0};
     socklen_t fromLength = sizeof(struct sockaddr);
 
-    if ((rv = recvfrom(sd, &recvBuffer, BUFFER_SIZE, 0, (struct sockaddr *)playerAddr, &fromLength)) < 2) {
+    /* Receive message and address from another player */
+    if ((rv = recvfrom(sd, &recvBuffer, sizeof(recvBuffer), 0, (struct sockaddr *)playerAddr, &fromLength)) < 2) {
         if (rv < 0) print_error("new_game", errno, 0);
         return 0;
     } else {
+        /* Check if message if a vlid "New Game" request */
         if (recvBuffer.version == VERSION && recvBuffer.command == NEW_GAME) {
             printf("Player 2 at address %s has requested a new game\n", inet_ntoa(playerAddr->sin_addr));
             return 1;
@@ -327,72 +348,6 @@ void print_board(char board[ROWS][COLUMNS]) {
 }
 
 /**
- * @brief Gets Player 1's next move.
- * 
- * @return The integer for the square that Player 1 would like to move to. 
- */
-int get_p1_choice() {
-    int pick = 0;
-    char input[BUFFER_SIZE];
-    printf("Player 1, enter a number:  ");
-    /* Read line of user input */
-    fgets(input, sizeof(input), stdin);
-    /* Look for integer in input for player's move */
-    sscanf(input, "%d", &pick);
-    return pick;
-}
-
-int send_p1_move(int sd, const struct sockaddr_in *playerAddr, int move) {
-    struct Buffer sendBuffer = {0};
-    sendBuffer.version = VERSION;
-    sendBuffer.command = MOVE;
-    sendBuffer.data = move + '0';
-    if (sendto(sd, &sendBuffer, BUFFER_SIZE, 0, (struct sockaddr *)playerAddr, sizeof(struct sockaddr_in)) < 0) {
-        print_error("send_move", errno, 0);
-        return ERROR_CODE;
-    }
-    return move;
-}
-
-/**
- * @brief Gets Player 2's next move.
- * 
- * @param sd The socket descriptor of the connected player's comminication endpoint.
- * @return The integer for the square that Player 2 would like to move to. 
- */
-int get_p2_choice(int sd, const struct sockaddr_in *playerAddr) {
-    int rv;
-    struct Buffer recvBuffer = {0};
-    struct sockaddr_in clientAddr = {0};
-    socklen_t fromLength = sizeof(struct sockaddr_in);
-    uint32_t pAddr = playerAddr->sin_addr.s_addr;
-    uint16_t pPort = playerAddr->sin_port;
-
-    printf("Waiting for Player 2 to make a move...\n");
-    while (clientAddr.sin_addr.s_addr != pAddr || clientAddr.sin_port != pPort) {
-        /* Get move from remote player */
-        if ((rv = recvfrom(sd, &recvBuffer, BUFFER_SIZE, 0, (struct sockaddr *)&clientAddr, &fromLength)) <= 0) {
-            if (errno == EAGAIN || errno == EWOULDBLOCK) {
-                print_error("get_p2_choice: Player ran out of time to respond", 0, 0);
-                return ERROR_CODE;
-            } else {
-                if (clientAddr.sin_addr.s_addr == pAddr && clientAddr.sin_port == pPort) {
-                    print_error("get_p2_choice", errno, 0);
-                    return ERROR_CODE;
-                }
-            }
-        }
-    }
-    if (recvBuffer.version != VERSION || recvBuffer.command != MOVE) {
-        if (recvBuffer.version != VERSION) print_error("get_p2_choice: Protocol version not supported", 0, 0);
-        if (recvBuffer.command != MOVE) print_error("get_p2_choice: Expected a MOVE command", 0, 0);
-        return ERROR_CODE;
-    }
-    printf("Player 2 chose:  %c\n", recvBuffer.data);
-    return (recvBuffer.data - '0');
-}
-
-/**
  * @brief Determines whether a given move is legal (i.e. number 1-9) and valid (i.e. hasn't
  * already been played) for the current game.
  * 
@@ -419,10 +374,91 @@ int validate_choice(int choice, char board[ROWS][COLUMNS]) {
 }
 
 /**
+ * @brief Gets Player 1's next move.
+ * 
+ * @return The integer for the square that Player 1 would like to move to. 
+ */
+int get_p1_choice() {
+    int pick = 0;
+    char input[BUFFER_SIZE];
+    printf("Player 1, enter a number:  ");
+    /* Read line of user input */
+    fgets(input, sizeof(input), stdin);
+    /* Look for integer in input for player's move */
+    sscanf(input, "%d", &pick);
+    return pick;
+}
+
+/**
+ * @brief Gets Player 2's next move.
+ * 
+ * @param sd The socket descriptor of the server comminication endpoint.
+ * @param playerAddr The socket address structure for the remote player comminication endpoint.
+ * @return The integer for the square that Player 2 would like to move to, or an error code. 
+ */
+int get_p2_choice(int sd, const struct sockaddr_in *playerAddr) {
+    int rv;
+    struct Buffer recvBuffer = {0};
+    struct sockaddr_in clientAddr = {0};
+    socklen_t fromLength = sizeof(struct sockaddr_in);
+    uint32_t pAddr = playerAddr->sin_addr.s_addr;
+    uint16_t pPort = playerAddr->sin_port;
+
+    printf("Waiting for Player 2 to make a move...\n");
+    /* Throw away messages not from player who asked for the game */
+    while (clientAddr.sin_addr.s_addr != pAddr || clientAddr.sin_port != pPort) {
+        /* Get move from remote player */
+        if ((rv = recvfrom(sd, &recvBuffer, sizeof(recvBuffer), 0, (struct sockaddr *)&clientAddr, &fromLength)) <= 0) {
+            /* If error occured, check if it was a timeout */
+            if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                print_error("get_p2_choice: Player ran out of time to respond", 0, 0);
+                return ERROR_CODE;
+            } else {
+                if (clientAddr.sin_addr.s_addr == pAddr && clientAddr.sin_port == pPort) {
+                    print_error("get_p2_choice", errno, 0);
+                    return ERROR_CODE;
+                }
+            }
+        }
+    }
+    /* Check that the datagram received from the other player was valid */
+    if (recvBuffer.version != VERSION || recvBuffer.command != MOVE) {
+        if (recvBuffer.version != VERSION) print_error("get_p2_choice: Protocol version not supported", 0, 0);
+        if (recvBuffer.command != MOVE) print_error("get_p2_choice: Expected a MOVE command", 0, 0);
+        return ERROR_CODE;
+    }
+    printf("Player 2 chose:  %c\n", recvBuffer.data);
+    return (recvBuffer.data - '0');
+}
+
+/**
+ * @brief Sends Player 1's move to the remote player.
+ * 
+ * @param sd The socket descriptor of the server comminication endpoint.
+ * @param playerAddr The socket address structure for the remote player comminication endpoint.
+ * @param move The move to be sent to the remote player.
+ * @return The move that was sent, or an error code if there was an issue. 
+ */
+int send_p1_move(int sd, const struct sockaddr_in *playerAddr, int move) {
+    /* Pack move information into structure for datagram */
+    struct Buffer sendBuffer = {0};
+    sendBuffer.version = VERSION;
+    sendBuffer.command = MOVE;
+    sendBuffer.data = move + '0';
+    /* Send the move to the remote player */
+    if (sendto(sd, &sendBuffer, sizeof(sendBuffer), 0, (struct sockaddr *)playerAddr, sizeof(struct sockaddr_in)) < 0) {
+        print_error("send_move", errno, 0);
+        return ERROR_CODE;
+    }
+    return move;
+}
+
+/**
  * @brief Gets the choice from either Player 1 or 2. If the choice came from Player 1,
  * it also send this choice to the other player.
  * 
- * @param sd The socket descriptor of the connected player's comminication endpoint.
+ * @param sd The socket descriptor of the server comminication endpoint.
+ * @param playerAddr The socket address structure for the remote player comminication endpoint.
  * @param board The array representing the current state of the game board.
  * @param player The value indicating which player's turn it is.
  * @return The valid choice received from either Player 1 or 2, or -1 if an invalid
@@ -451,7 +487,8 @@ int get_player_choice(int sd, const struct sockaddr_in *playerAddr, char board[R
  * @brief Plays a simple game of TicTacToe with a remoye player that ends when either someone wins,
  * there is a draw, or the remote player leaves the game.
  * 
- * @param sd The socket descriptor of the connected player's comminication endpoint.
+ * @param sd The socket descriptor of the server comminication endpoint.
+ * @param playerAddr The socket address structure for the remote player comminication endpoint.
  * @param board The array representing the current state of the game board.
  */
 void tictactoe(int sd, const struct sockaddr_in *playerAddr, char board[ROWS][COLUMNS]) {
