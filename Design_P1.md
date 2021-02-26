@@ -76,7 +76,8 @@ int create_endpoint(params...) {
     return socket-descriptor;
 }
 ```
-TODO
+Recieves a datagram from another player and checks to see if it is a valid "New Game"
+request.
 ```C
 int new_game(params...) {
     /* receive datagram from remote player */
