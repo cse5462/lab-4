@@ -1,19 +1,25 @@
 # TicTacToe Player 1 (server) Design
-> This is the design document for the TicTacToe Server ([tictactoeP1.c](https://github.com/CSE-5462-Spring-2021/assignment3-conner-n-ben/blob/master/tictactoeP1.c)).  
+> This is the design document for the TicTacToe Server ([tictactoeP1.c](https://github.com/CSE-5462-Spring-2021/assigment4-conner-and-ben/blob/main/tictactoeP1.c)).  
 > By: Conner Graham
 
 ## Table of Contents
-- TicTacToe Class Protocol - [Protocol Document](https://docs.google.com/document/d/18NELyK0rywzaeZ_eVgDlaO9Z9MJ82zlH7tFRHX5Gh6M/edit?usp=sharing)
+- TicTacToe Class Protocol - [Protocol Document](https://docs.google.com/document/d/1Cl-n4nrhrzsqrl4gDFqdTwUC35rcNlwehRR58VY7k6c/edit?usp=sharing)
 - [Environment Constants](#environment-constants)
 - [High-Level Architecture](#high-level-architecture)
 - [Low-Level Architecturet](#low-level-architecture)
 
 ## Environment Constants
 ```C#
+VERSION = 2       // protocol version number
+
 NUM_ARGS = 2      // number of command line arguments
-BACKLOG_MAX = 5   // max length for queue of pending connections
+TIMEOUT = TBD     // number of seconds spent waiting before a timeout
 ROWS = 3          // number of rows for the TicIacToe board
 COLUMNS = 3       // number of columns for the TicIacToe board
+
+// COMMANDS
+NEW_GAME = 0x00   // command to begin a new game
+MOVE = 0x01       // command to issue a move
 ```
 
 ## High-Level Architecture
