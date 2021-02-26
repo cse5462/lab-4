@@ -25,25 +25,24 @@ MOVE = 0x01       // command to issue a move
 ## High-Level Architecture
 At a high level, the server application attempts to validate and extract the arguments passed
 to the application. It then attempts to create and bind the server endpoint. If everything was
-successful, it then starts listening for clients and waits to connect to another player. If
-another player connects, the server initializes the game board and begins the TicTacToe game.
-After the game is over, the server closes the connection to the other player. If an error occurs
-before the connection is established, the program terminates and prints appropriate error
-messages, otherwise an error message is printed and the connection is terminated.
+successful, it then starts looking for clients issuing a "New Game" request. If another player
+requests a game, the server initializes the game board and begins the TicTacToe game. After
+the game is over, the server then starts looking for other players issuing "New Game" requests.
+If an error occurs before the connection is established, the program terminates and prints
+appropriate error messages, otherwise an error message is printed and the connection is terminated.
 ```C
 int main(int argc, char *argv[]) {
     /* check that the arg count is correct */
     if (!correct) exit(EXIT_FAILURE);
     extract_args(params...);
     create_endpoint(params...);
-    /* listen for  */
-    if (listening) {
-        /* infinite loop wiating for a player to connect */
-        if (connected) {
-            init_shared_state(params...);   // initialize game board
-            tictactoe(params...);   // start TicTacToe game
-            /* terminate connection to client */
-        }
+    /* wait for "New Game" request */
+    /* infinite loop waiting for a player to make game request  */
+    if (new_game) {
+        /* set recv TIMEOUT */
+        init_shared_state(params...);   // initialize game board
+        tictactoe(params...);   // start TicTacToe game
+        /* end game and look for another "New Game" request */
     } else {
         exit(EXIT_FAILURE);
     }
@@ -77,15 +76,34 @@ int create_endpoint(params...) {
     return socket-descriptor;
 }
 ```
-TODO Note: This function was created by Dr. Ogle (not myself), but I made significant changes to it's
-structure so I have included it in my design.
+TODO
+```C
+int new_game(params...) {
+    /* receive datagram from remote player */
+    if (!error) {
+        /* check for valid "New Game" request */
+        if (valid) {
+            return TRUE;
+        } else {
+            return FALSE;
+        }
+    } else {
+        return FALSE;
+    }
+    return socket-descriptor;
+}
+```
+Plays a simple game of TicTacToe with a remoye player that ends when either someone wins,
+there is a draw, or the remote player leaves the game. NOTE: This function was created
+by Dr. Ogle (not myself), but I made significant changes to it's structure so I have
+included it in my design.
 ```C
 void tictactoe(params...) {
     /* initialize whose turn it is */
     while (game not over) {
         print_board(params...);
         get_player_choice(params...);   // get move from Player 1 or 2
-        if (error_code) return;
+        if (ERROR_CODE) return;
         /* get correct mark for player move */
         /* determine where to move and update game board */
         check_win(params...);
@@ -105,6 +123,33 @@ void tictactoe(params...) {
         return TRUE;
     }
     ```
+- Gets Player 2's next move.
+    ```C
+    int get_p2_choice(params...) {
+        /* throw away datagrams not from player who made the game request */
+        /* receive datagram from current player */
+        if (error) {
+            if (error is timeout) {
+                return ERROR_CODE;
+            } else {
+                return ERROR_CODE;
+            }
+        }
+        /* check that the datagram received from the other player was valid */
+        if (!valid) return ERROR_CODE;
+        return (player2 move);
+    }
+    ```
+- Sends Player 1's move to the remote player. Return the move sent, or an error code if there was
+  an issue sending the move.
+    ```C
+    int send_p1_move(params...) {
+        /* pack move info into buffer */
+        /* send buffer in datagram to the remote player */
+        if (error) return ERROR_CODE;
+        return move;
+    }
+    ```
 - Returns the validated player intput received from either Player 1 or 2. If the input from the host
   player in invalid, it reprompts until a valid move is made. If the input from the remote player is
   invalid, an error code is returned instead.
@@ -113,11 +158,10 @@ void tictactoe(params...) {
         /* get choice from Player 1 or 2 */
         while (move invalid) {
             /* reprompt for valid move */
-            if (Player 2) return error_code;
+            if (Player 2) return ERROR_CODE;
         }
         if (Player 1) {
-            /* send move to Player 2 */
+           send_p1_move(params...)
         }
     }
     ```
-    
