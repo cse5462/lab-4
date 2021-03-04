@@ -1,5 +1,5 @@
 # TicTacToe Player 2 (client) Design
-> This is the design document for the TicTacToe Client ([tictactoeP2.c](https://github.com/CSE-5462-Spring-2021/assignment3-conner-n-ben/blob/master/tictactoeP2.c)).  
+> This is the design document for the TicTacToe Client ([tictactoeClient.c](https://github.com/CSE-5462-Spring-2021/assignment3-conner-n-ben/blob/master/tictactoeClient.c)).  
 > By: Ben Nagel
 
 ## Table of Contents
