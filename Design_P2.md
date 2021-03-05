@@ -1,9 +1,9 @@
 # TicTacToe Player 2 (client) Design
-> This is the design document for the TicTacToe Client ([tictactoeClient.c](https://github.com/CSE-5462-Spring-2021/assignment3-conner-n-ben/blob/master/tictactoeClient.c)).  
+> This is the design document for the TicTacToe Client ([tictactoeP2.c](https://github.com/CSE-5462-Spring-2021/assigment4-conner-and-ben/blob/main/tictactoeP2.c)).  
 > By: Ben Nagel
 
 ## Table of Contents
-- TicTacToe Class Protocol - [Protocol Document](https://docs.google.com/document/d/18NELyK0rywzaeZ_eVgDlaO9Z9MJ82zlH7tFRHX5Gh6M/edit?usp=sharing)
+- TicTacToe Class Protocol - [Protocol Document](https://docs.google.com/document/d/1Cl-n4nrhrzsqrl4gDFqdTwUC35rcNlwehRR58VY7k6c/edit?usp=sharing)
 - [Environment Constants](#environment-constants)
 - [High-Level Architecture](#high-level-architecture)
 - [Low-Level Architecturet](#low-level-architecture)
